@@ -96,6 +96,7 @@ export class RoomController {
                 message: 'Room created successfully',
                 data: {
                     roomId: room.roomId,
+                    _id: room._id,
                     name: room.name,
                     description: room.description,
                     maxParticipants: room.maxParticipants,
@@ -442,11 +443,11 @@ export class RoomController {
         try {
 
             const { roomId } = req.params;
-            const { identity } = req.body;
+            const { identity, participantName } = req.body;
             const  user  = req.user as any;
-            const name = user?.name;
+            const name = participantName || user?.name || 'Anonymous';
             const email = user?.email;
-            const role = user?.role;
+            const role = user?.role || 'participant';
 
     
             // Check if room exists and is active
@@ -470,7 +471,7 @@ export class RoomController {
 
             // Generate token
             const token = await generateJoinToken({
-                identity:roomId,
+                identity: identity || roomId,
                 room: roomId,
                 metadata: {
                     name,
@@ -483,11 +484,11 @@ export class RoomController {
                 success: true,
                 data: {
                     token,
-                    roomId:room.roomId,
-                    identity,
+                    roomId: room.roomId,
+                    identity: identity || roomId,
                     name,
                     role,
-                    url:config.livekitUrl,
+                    url: config.livekitUrl,
                     expiresIn: 3600 // 1 hour
                 }
             });

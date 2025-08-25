@@ -228,7 +228,7 @@ class VirtualParticipantManager {
             });
 
             // Remove from Redis cache
-            await RedisVideoService.removeParticipant(participantId);
+            await RedisVideoService.removeParticipant(participantId, room.roomId);
             await RedisVideoService.decrementRoomParticipants(room.roomId);
 
             console.log(`🧹 Removed virtual participant ${participantId}`);

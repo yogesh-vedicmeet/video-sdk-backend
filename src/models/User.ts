@@ -5,6 +5,7 @@ import * as crypto from 'crypto';
 export interface IUser extends Document {
     userId: string;
     email: string;
+    phone: string;
     name: string;
     password: string;
     avatar?: string;

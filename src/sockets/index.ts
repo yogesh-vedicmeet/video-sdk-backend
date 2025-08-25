@@ -1,6 +1,7 @@
 import { Server as SocketIOServer } from 'socket.io';
 import appNamespace from './namespaces/app';
 import interactiveNamespace from './namespaces/interactive';
+import { ChatService } from '../services/chatService';
 
 export default (io: SocketIOServer) => {
 
@@ -10,4 +11,8 @@ export default (io: SocketIOServer) => {
     // interactive namespace - "/interactive"
     interactiveNamespace(io);
 
+    // Initialize chat service
+    const chatService = new ChatService(io);
+
+    return chatService;
 }

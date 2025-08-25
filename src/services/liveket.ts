@@ -47,6 +47,15 @@ export interface TokenOptions {
     ttl?: number; // Token time to live in seconds
 }
 
+export interface RoleBasedTokenOptions {
+    identity: string;
+    room: string;
+    role: 'host' | 'moderator' | 'participant' | 'viewer';
+    joinType?: 'video' | 'viewer';
+    metadata?: Record<string, any>;
+    ttl?: number;
+}
+
 /**
  * Generate a join token for a participant
  */
@@ -332,20 +341,87 @@ export async function generateTemporaryToken(
 }
 
 /**
- * Generate a moderator token with full permissions
+ * Generate a role-based token with appropriate permissions
  */
-export async function generateModeratorToken(identity: string, room: string): Promise<string> {
+export async function generateRoleBasedToken(options: RoleBasedTokenOptions): Promise<string> {
+    const { identity, room, role, joinType = 'video', metadata = {}, ttl = 3600 } = options;
+    
+    let grants: VideoGrant = {
+        roomJoin: true,
+        room: room,
+        canSubscribe: true,
+        canPublishData: true, // Allow chat for all roles
+    };
+
+    // Set permissions based on role and join type
+    switch (role) {
+        case 'host':
+        case 'moderator':
+            grants = {
+                ...grants,
+                canPublish: true,
+                canSubscribe: true,
+                canPublishData: true,
+                canUpdateOwnMetadata: true,
+            };
+            break;
+            
+        case 'participant':
+            if (joinType === 'viewer') {
+                // Participant joining as viewer
+                grants = {
+                    ...grants,
+                    canPublish: false,
+                    canSubscribe: true,
+                    canPublishData: true,
+                    canUpdateOwnMetadata: false,
+                };
+            } else {
+                // Regular participant
+                grants = {
+                    ...grants,
+                    canPublish: true,
+                    canSubscribe: true,
+                    canPublishData: true,
+                    canUpdateOwnMetadata: true,
+                };
+            }
+            break;
+            
+        case 'viewer':
+            // Viewer (chat-only)
+            grants = {
+                ...grants,
+                canPublish: false,
+                canSubscribe: true,
+                canPublishData: true, // Allow chat
+                canUpdateOwnMetadata: false,
+            };
+            break;
+    }
+
     return await generateJoinToken({
         identity,
         room,
-        grants: {
-            roomJoin: true,
-            room: room,
-            canPublish: true,
-            canSubscribe: true,
-            canPublishData: true,
-            canUpdateOwnMetadata: true
-        }
+        metadata: {
+            ...metadata,
+            role,
+            joinType,
+            timestamp: Date.now()
+        },
+        grants,
+        ttl
+    });
+}
+
+/**
+ * Generate a moderator token with full permissions
+ */
+export async function generateModeratorToken(identity: string, room: string): Promise<string> {
+    return await generateRoleBasedToken({
+        identity,
+        room,
+        role: 'moderator'
     });
 }
 
@@ -353,17 +429,10 @@ export async function generateModeratorToken(identity: string, room: string): Pr
  * Generate a viewer token with limited permissions
  */
 export async function generateViewerToken(identity: string, room: string): Promise<string> {
-    return await generateJoinToken({
+    return await generateRoleBasedToken({
         identity,
         room,
-        grants: {
-            roomJoin: true,
-            room: room,
-            canPublish: false,
-            canSubscribe: true,
-            canPublishData: false,
-            canUpdateOwnMetadata: false
-        }
+        role: 'viewer'
     });
 }
 
@@ -401,6 +470,7 @@ export {
 // Default export for convenience
 export default {
     generateJoinToken,
+    generateRoleBasedToken,
     createRoomIfNotExists,
     deleteRoom,
     listRooms,

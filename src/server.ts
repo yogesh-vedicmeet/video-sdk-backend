@@ -1,4 +1,6 @@
 import sockets from "./sockets";
+import chatRoutes, { setChatController } from './routes/chatRoutes';
+import ChatController from './controllers/ChatController';
 
 // worker.js
 import express from "express";
@@ -44,6 +46,7 @@ app.use(cors());
 app.use(express.json());
 app.use(morgan('dev'));
 app.use('/api', routes);
+app.use('/api/chat', chatRoutes);
 
 // logger winston
 const requestLogger = expressWinston.logger({
@@ -121,8 +124,12 @@ async function initializeServer() {
 
         await cleanupOldDocuments(mongoCollection);
 
-        // Initialize socket handlers
-        sockets(io);
+        // Initialize socket handlers and get chat service
+        const chatService = sockets(io);
+
+        // Initialize chat controller
+        const chatController = new ChatController(chatService);
+        setChatController(chatController);
 
         const PORT = Number(config.port);
         console.log(`Starting server on port: ${PORT} (from config.port: ${config.port})`);

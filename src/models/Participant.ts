@@ -16,6 +16,7 @@ export interface IParticipant extends Document {
     joinedAt: Date;
     leftAt?: Date;
     lastActivityAt: Date;
+    isBlocked: boolean;
 }
 
 const ParticipantSchema = new Schema<IParticipant>({
@@ -113,6 +114,10 @@ const ParticipantSchema = new Schema<IParticipant>({
         type: Date, 
         default: Date.now,
         index: true
+    },
+    isBlocked: { 
+        type: Boolean, 
+        default: false
     }
 }, {
     timestamps: true,
@@ -191,48 +196,58 @@ ParticipantSchema.methods.leave = function() {
     this.isOnline = false;
     this.leftAt = new Date();
     this.isScreenSharing = false;
+    this.isBlocked = false;
+    this.metadata = { ...this.metadata, isBlocked: false };
     return this.save();
 };
 
 ParticipantSchema.methods.mute = function() {
     this.isMuted = true;
+    this.metadata = { ...this.metadata, isMuted: true };
     return this.save();
 };
 
 ParticipantSchema.methods.unmute = function() {
     this.isMuted = false;
+    this.metadata = { ...this.metadata, isMuted: false };
     return this.save();
 };
 
 ParticipantSchema.methods.enableVideo = function() {
     this.isVideoEnabled = true;
+    this.metadata = { ...this.metadata, isVideoEnabled: true };
     return this.save();
 };
 
 ParticipantSchema.methods.disableVideo = function() {
     this.isVideoEnabled = false;
+    this.metadata = { ...this.metadata, isVideoEnabled: false };
     return this.save();
 };
 
 ParticipantSchema.methods.startScreenShare = function() {
     this.isScreenSharing = true;
+    this.metadata = { ...this.metadata, isScreenSharing: true };
     return this.save();
 };
 
 ParticipantSchema.methods.stopScreenShare = function() {
     this.isScreenSharing = false;
+    this.metadata = { ...this.metadata, isScreenSharing: false };
     return this.save();
 };
 
 ParticipantSchema.methods.updateActivity = function() {
     this.lastActivityAt = new Date();
+    this.metadata = { ...this.metadata, lastActivityAt: this.lastActivityAt };
     return this.save();
 };
 
 ParticipantSchema.methods.changeRole = function(newRole: string) {
     if (['host', 'moderator', 'participant', 'viewer'].includes(newRole)) {
         this.role = newRole as any;
-        return this.save();
+        this.metadata = { ...this.metadata, role: this.role };
+            return this.save();
     }
     throw new Error('Invalid role');
 };

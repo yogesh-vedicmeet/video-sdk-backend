@@ -21,6 +21,7 @@ interface JWTPayload {
     id: string;
     email: string;
     role: string;
+    phone: string;
     iat: number;
     exp: number;
 }
@@ -48,7 +49,7 @@ export async function authenticate(req: Request, res: Response, next: NextFuncti
         console.log('decoded', decoded);
       
         
-        let user = await User.findOne({ userId: 'user_9aji729s' }).lean();
+        let user = await User.findOne({ phone: decoded.phone }).lean();
         if (!user) {
             res.status(500).json({
                 success: false,

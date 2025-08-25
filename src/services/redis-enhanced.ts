@@ -1,6 +1,7 @@
 import Redis, { RedisOptions } from 'ioredis';
 import { config } from '../config/config';
 import { v4 as uuidv4 } from 'uuid';
+import mongoose from 'mongoose';
 
 // Redis connection configuration
 const redisConfig: RedisOptions = {
@@ -80,7 +81,8 @@ const KEY_PREFIXES = {
     LOCK: 'lock',
     QUEUE: 'queue',
     ANALYTICS: 'analytics',
-    NOTIFICATION: 'notification'
+    NOTIFICATION: 'notification',
+    VIDEO_EVENT: 'video_event'
 } as const;
 
 // Interfaces
@@ -100,6 +102,46 @@ export interface RoomCache {
     };
     metadata: Record<string, any>;
     lastActivityAt: number;
+    createdAt: number;
+}
+
+export interface VideoEventCache {
+    eventId: string;
+    roomId: string;
+    name: string;
+    status: string;
+    participantCount: number;
+    maxParticipants: number;
+    hostId: string;
+    settings: {
+        allowChat: boolean;
+        allowScreenShare: boolean;
+        allowRecording: boolean;
+        requireApproval: boolean;
+        autoRecord: boolean;
+    };
+    permissions: {
+        canJoin: {
+            enabled: boolean;
+            onlySubscribers: boolean;
+            minWalletBalance: number;
+        };
+        canChat: {
+            enabled: boolean;
+            onlySubscribers: boolean;
+            minWalletBalance: number;
+        };
+        canVideo: {
+            enabled: boolean;
+            onlySubscribers: boolean;
+            minWalletBalance: number;
+        };
+        canAudio: {
+            enabled: boolean;
+            onlySubscribers: boolean;
+            minWalletBalance: number;
+        };
+    };
     createdAt: number;
 }
 
@@ -171,6 +213,110 @@ export class RedisVideoService {
         } catch (error) {
             console.error(`❌ Failed to get cached room ${roomId}:`, error);
             return null;
+        }
+    }
+
+    // Video Event operations
+    static async cacheVideoEvent(eventData: VideoEventCache, ttl: number = 3600): Promise<boolean> {
+        try {
+            const redisClient = getRedis();
+            const key = `${KEY_PREFIXES.VIDEO_EVENT}:${eventData.eventId}`;
+            await redisClient.setex(key, ttl, JSON.stringify(eventData));
+            console.log(`💾 Cached video event: ${eventData.eventId}`);
+            return true;
+        } catch (error) {
+            console.error(`❌ Failed to cache video event ${eventData.eventId}:`, error);
+            return false;
+        }
+    }
+
+    static async getCachedVideoEvent(eventId: string): Promise<VideoEventCache | null> {
+        try {
+            const redisClient = getRedis();
+            const key = `${KEY_PREFIXES.VIDEO_EVENT}:${eventId}`;
+            const data = await redisClient.get(key);
+            if (data) {
+                const event = JSON.parse(data) as VideoEventCache;
+                console.log(`📋 Retrieved cached video event: ${eventId}`);
+                return event;
+            }
+            return null;
+        } catch (error) {
+            console.error(`❌ Failed to get cached video event ${eventId}:`, error);
+            return null;
+        }
+    }
+
+    static async clearVideoEventCache(eventId: string): Promise<boolean> {
+        try {
+            const redisClient = getRedis();
+            const key = `${KEY_PREFIXES.VIDEO_EVENT}:${eventId}`;
+            await redisClient.del(key);
+            console.log(`🗑️ Cleared video event cache: ${eventId}`);
+            return true;
+        } catch (error) {
+            console.error(`❌ Failed to clear video event cache ${eventId}:`, error);
+            return false;
+        }
+    }
+
+    static async updateVideoEventActivity(eventId: string): Promise<boolean> {
+        try {
+            const redisClient = getRedis();
+            const key = `${KEY_PREFIXES.VIDEO_EVENT}:${eventId}`;
+            const data = await redisClient.get(key);
+            if (data) {
+                const event = JSON.parse(data) as VideoEventCache;
+                // Update any activity-related fields here if needed
+                await redisClient.setex(key, 3600, JSON.stringify(event));
+                return true;
+            }
+            return false;
+        } catch (error) {
+            console.error(`❌ Failed to update video event activity ${eventId}:`, error);
+            return false;
+        }
+    }
+
+    static async incrementVideoEventParticipants(eventId: string): Promise<number> {
+        try {
+            const redisClient = getRedis();
+            const key = `${KEY_PREFIXES.VIDEO_EVENT}:${eventId}:participants`;
+            const count = await redisClient.incr(key);
+            await redisClient.expire(key, 3600); // 1 hour TTL
+            return count;
+        } catch (error) {
+            console.error(`❌ Failed to increment video event participants ${eventId}:`, error);
+            return 0;
+        }
+    }
+
+    static async decrementVideoEventParticipants(eventId: string): Promise<number> {
+        try {
+            const redisClient = getRedis();
+            const key = `${KEY_PREFIXES.VIDEO_EVENT}:${eventId}:participants`;
+            const count = await redisClient.decr(key);
+            if (count < 0) {
+                await redisClient.set(key, 0);
+                return 0;
+            }
+            await redisClient.expire(key, 3600); // 1 hour TTL
+            return count;
+        } catch (error) {
+            console.error(`❌ Failed to decrement video event participants ${eventId}:`, error);
+            return 0;
+        }
+    }
+
+    static async getVideoEventParticipantsCount(eventId: string): Promise<number> {
+        try {
+            const redisClient = getRedis();
+            const key = `${KEY_PREFIXES.VIDEO_EVENT}:${eventId}:participants`;
+            const count = await redisClient.get(key);
+            return count ? parseInt(count) : 0;
+        } catch (error) {
+            console.error(`❌ Failed to get video event participants count ${eventId}:`, error);
+            return 0;
         }
     }
 
